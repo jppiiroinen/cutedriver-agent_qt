@@ -1,0 +1,12 @@
+VIDEO MEMORY:
+    gcvPOOL_SYSTEM:
+        Free  :  109121640 B
+        Used  :   25096088 B
+        Total :  134217728 B
+    gcvPOOL_CONTIGUOUS:
+        Used  :          1 B
+    gcvPOOL_VIRTUAL:
+        Used  :          2 B
+
+NON PAGED MEMORY:
+    Used  :          3 B

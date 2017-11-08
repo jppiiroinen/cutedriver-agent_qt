@@ -34,6 +34,8 @@ SUBDIRS += loaders
 
 SUBDIRS += utilityapp
 
+SUBDIRS += tests
+
 CONFIG  += ordered
 
 unix:!macx {

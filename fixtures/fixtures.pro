@@ -19,6 +19,8 @@
 
 TEMPLATE = subdirs
 
+SUBDIRS += cuteimxfixture
+
 SUBDIRS += signalfixture
 
 SUBDIRS += tasfixture

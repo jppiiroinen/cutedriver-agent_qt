@@ -1,0 +1,12 @@
+gpu      : 0
+model    : 3000
+revision : 5450
+
+gpu      : 1
+model    :  320
+revision : 5303
+
+gpu      : 2
+model    :  355
+revision : 1216
+
