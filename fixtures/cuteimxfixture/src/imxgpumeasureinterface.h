@@ -22,6 +22,8 @@
 #include <QObject>
 #include <tasqtdatamodel.h>
 
+typedef QHash<QString, QVariant> ResultHash;
+
 class ImxGpuMeasureInterface : public QObject
 {
     Q_OBJECT
@@ -29,26 +31,31 @@ public:
     explicit ImxGpuMeasureInterface(QObject *parent = 0);
     ~ImxGpuMeasureInterface();
 
-    bool isValid() { return m_isValid; }
-    QHash<QString, QVariant> lastResult() { return m_lastResult; }
+    ResultHash lastResult() { return m_lastResult; }
     void sendReport(QString& stdOut);
     virtual void reportData(TasObjectContainer& container) = 0;
-    virtual QHash<QString, QVariant> parseResult(QString data) = 0;
-    virtual bool checkValidity(QHash<QString, QVariant> result) = 0;
+    virtual ResultHash parseResult(QString data) = 0;
+    virtual bool checkValidity(ResultHash result) = 0;
+    void clearResults() { m_results.clear(); }
+
+    bool cancelled;
 
 public slots:
-    void startMeasure();
+    void startMeasure(int interval = -1);
     QHash<QString, QVariant> stopMeasure();
+
 
 protected:
     QHash<QString, QVariant> processResult();
 
+    int m_interval;
     QString m_fileName;
     QString m_serviceName;
     QString m_serviceType;
-    bool m_isValid;
-    QHash<QString, QVariant> m_lastResult;
-    QHash<QString, QVariant> m_previousResult;
+
+    QList<ResultHash> m_results;
+    ResultHash m_lastResult;
+    ResultHash m_previousResult;
 
     friend class TestImxFixture;
 };

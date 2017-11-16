@@ -30,8 +30,8 @@ public:
     ~ImxGpuApps();
 
     void reportData(TasObjectContainer& container);
-    QHash<QString, QVariant> parseResult(QString data);
-    bool checkValidity(QHash<QString, QVariant> result);
+    ResultHash parseResult(QString data);
+    bool checkValidity(ResultHash result);
 };
 
 #endif // IMXGPUAPPS_H

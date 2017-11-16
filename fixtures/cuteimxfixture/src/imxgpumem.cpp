@@ -34,7 +34,7 @@ ImxGpuMem::~ImxGpuMem()
     TasLogger::logger()->debug(Q_FUNC_INFO);
 }
 
-QHash<QString, QVariant> ImxGpuMem::parseResult(QString data)
+ResultHash ImxGpuMem::parseResult(QString data)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     /*
@@ -51,7 +51,7 @@ VIDEO MEMORY:
 NON PAGED MEMORY:
     Used  :          0 B
      */
-    QHash<QString, QVariant> retval;
+    ResultHash memData;
 
     QString mainMemory;
     QString currentMemType;
@@ -89,20 +89,24 @@ NON PAGED MEMORY:
             QString retval_key = QString("%0_%1_%2").arg(mainMemory.toLower()).arg(currentMemType.toLower()).arg(key.toLower());
             TasLogger::logger()->debug(QString("Adding '%0' = '%1'.").arg(retval_key).arg(value));
             bool ok = false;
-            retval[retval_key] = value.toLongLong(&ok);
+            memData[retval_key] = value.toLongLong(&ok);
             if (!ok) {
-                retval[retval_key] = value;
+                TasLogger::logger()->warning(QString("Possible invalid value '%0' in field '%1'.").arg(retval_key).arg(value));
+                memData[retval_key] = value;
             }
         } else {
             currentMemType.clear();
         }
     }
+
+    ResultHash retval;
+    retval["mem"] = memData;
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 
     return retval;
 }
 
-bool ImxGpuMem::checkValidity(QHash<QString, QVariant> result)
+bool ImxGpuMem::checkValidity(ResultHash result)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     bool retval = false;
@@ -135,14 +139,23 @@ void ImxGpuMem::reportData(TasObjectContainer& container)
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     TasObject& parent = container.addNewObject("0", "GpuMem", "logData");
 
-    parent.addAttribute("isValid", m_isValid);
-    parent.addAttribute("entryCount", "1");
-
-    TasObject& obj = parent.addNewObject(QString::number(0),"LogEntry", "logEntry");
-    foreach(QString key, m_lastResult.keys()) {
-        QString value = m_lastResult[key].toString();
-        obj.addAttribute(key, value);
-        TasLogger::logger()->debug(QString("Adding %0='%1'").arg(key).arg(value));
+    parent.addAttribute("entryCount", QString::number(m_results.count()));
+    int idx = 0;
+    foreach(ResultHash result, m_results) {
+        TasObject& resultObj = parent.addNewObject(QString::number(idx),"LogEntry", "logEntry");
+        resultObj.addAttribute("count", QString::number(result["mem"].toHash().keys().count()));
+        resultObj.addAttribute("timestamp_start", result["timestamp_start"].toString());
+        resultObj.addAttribute("timestamp_end", result["timestamp_end"].toString());
+        resultObj.addAttribute("is_valid", result["is_valid"].toString());
+        int i = 0;
+        foreach(QString key, result["mem"].toHash().keys()) {
+            TasObject& appObj = resultObj.addNewObject(QString::number(i),"DataRow", "dataRow");
+            QString value = result[key].toString();
+            appObj.addAttribute(key, value);
+            TasLogger::logger()->debug(QString("Adding %0='%1'").arg(key).arg(value));
+            i++;
+        }
+        idx++;
     }
 
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));

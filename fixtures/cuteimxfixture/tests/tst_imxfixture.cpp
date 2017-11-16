@@ -18,6 +18,7 @@
 ****************************************************************************/
 #include <QtTest>
 #include <QtXml>
+#include <QtGui/QGuiApplication>
 
 #include "../src/imxgpumeasureinterface.h"
 #include "../src/imxgpuapps.h"
@@ -109,22 +110,34 @@ void TestImxFixture::test_parse_info() {
 
     QStringList gpus;
     gpus << "0" << "1" << "2";
-    QHash<QString, QString> fields;
-    fields["0_model"] = "3000";
-    fields["0_revision"] = "5450";
 
-    fields["1_model"] = "320";
-    fields["1_revision"] = "5303";
+    ResultHash gpuData;
+    ResultHash gpuOne;
+    gpuOne["model"] = "3000";
+    gpuOne["revision"] = "5450";
+    gpuData["0"] = gpuOne;
 
-    fields["2_model"] = "355";
-    fields["2_revision"] = "1216";
+    ResultHash gpuTwo;
+    gpuTwo["model"] = "320";
+    gpuTwo["revision"] = "5303";
+    gpuData["1"] = gpuTwo;
 
+    ResultHash gpuThree;
+    gpuThree["model"] = "355";
+    gpuThree["revision"] = "1216";
+    gpuData["2"] = gpuThree;
+
+    QStringList gpuFields;
+    gpuFields << "model" << "revision";
     foreach(QString gpu, gpus) {
-        QStringList gpuFields;
-        gpuFields << QString("%0_model").arg(gpu) << QString("%0_revision").arg(gpu);
+        ResultHash gpuExpectedResult = gpuData[gpu].toHash();
+        ResultHash gpuActualResult = result[gpu].toHash();
         foreach(QString gpuField, gpuFields) {
-            QVERIFY(result.contains(gpuField));
-            QVERIFY2(result[gpuField] == fields[gpuField], QString("'%0' expected to be '%1' actual '%2'.").arg(gpuField).arg(fields[gpuField]).arg(result[gpuField].toString()).toLatin1().data());
+            QVERIFY2(gpuActualResult.contains(gpuField), QString("result contains '%0' field.").arg(gpuField).toLatin1().data());
+            QVERIFY2(gpuActualResult[gpuField] == gpuExpectedResult[gpuField], QString("'%0' expected to be '%1' actual '%2'.")
+                     .arg(gpuField)
+                     .arg(gpuExpectedResult[gpuField].toString())
+                     .arg(gpuActualResult[gpuField].toString()).toLatin1().data());
         }
     }
 
@@ -135,6 +148,10 @@ void TestImxFixture::test_parse_info() {
     info->startMeasure();
     info->stopMeasure();
     info->sendReport(xml);
+
+    qDebug() << TestHelper::prettyPrintXml(xml);
+    QVERIFY2(TestHelper::validate_tasmessage(xml, "./xml/gpu_info.xsd"), "Structure of xml reply for ImxGpuInfo was invalid.");
+
 
     // check that the xml document is valid.
     QDomNode rootItem;
@@ -148,19 +165,26 @@ void TestImxFixture::test_parse_info() {
 
     // lets verify that our data is correct.
     TEST_PROPERTY(rootItem, "name", "GpuInfo");
-    TEST_ATTRIBUTE(rootItem, "entryCount", QString::number(gpus.count()));
-    TEST_ATTRIBUTE(rootItem, "isValid", "1");
+    TEST_ATTRIBUTE(rootItem, "entryCount", "1");
+//    TEST_ATTRIBUTE(rootItem, "is_valid", "true");
 
-    int idx = 0;
-    foreach(QString key, gpus) {
-        TEST_ENTRY_PROPERTY(rootItem, idx, "name", "LogEntry");
+    QDomNode dataRoot = TestHelper::get_node_by_id(rootItem, 0);
 
-        QString model = fields[QString("%0_model").arg(key)];
-        QString revision = fields[QString("%0_revision").arg(key)];
-        TEST_ENTRY_ATTRIBUTE(rootItem, idx, "model", model);
-        TEST_ENTRY_ATTRIBUTE(rootItem, idx, "revision", revision);
+    QString value;
+    TestHelper::get_attribute(dataRoot, "count", &value);
+    int dataRowCount = value.toInt();
+    QVERIFY(dataRowCount == gpus.count());
 
-        idx++;
+    for(int idx=0; idx<dataRowCount; idx++) {
+        QDomNode dataRow = TestHelper::get_datarow_by_id(dataRoot, idx);
+        QString gpu = QString::number(idx);
+
+        foreach(QString key, gpuFields) {
+            QString value;
+            TestHelper::get_attribute(dataRow, key, &value);
+            QString expectedValue = gpuData[gpu].toHash()[key].toString();
+            QVERIFY2(value == expectedValue, QString("Invalid [%0].'%1': Expected '%2' Actual '%3'").arg(gpu).arg(key).arg(value).arg(expectedValue).toLatin1().data());
+        }
     }
 }
 
@@ -194,6 +218,9 @@ void TestImxFixture::test_parse_apps() {
     apps->stopMeasure();
     apps->sendReport(xml);
 
+    qDebug() << TestHelper::prettyPrintXml(xml);
+    QVERIFY2(TestHelper::validate_tasmessage(xml, "./xml/gpu_apps.xsd"), "Structure of xml reply for ImxGpuApps was invalid.");
+
     // check that the xml document is valid.
     QDomNode rootItem;
     bool ok = false;
@@ -207,7 +234,7 @@ void TestImxFixture::test_parse_apps() {
     // lets verify that our data is correct.
     TEST_PROPERTY(rootItem, "name", "GpuApps");
     TEST_ATTRIBUTE(rootItem, "entryCount", QString::number(processes.keys().count()));
-    TEST_ATTRIBUTE(rootItem, "isValid", "1");
+    TEST_ATTRIBUTE(rootItem, "is_valid", "true");
 
     int idx = 0;
     foreach(QString key, processes.keys()) {
@@ -254,7 +281,8 @@ void TestImxFixture::test_parse_mem() {
     mem->startMeasure();
     mem->stopMeasure();
     mem->sendReport(xml);
-    QVERIFY(xml.length() > 0);
+    qDebug() << TestHelper::prettyPrintXml(xml);
+    QVERIFY2(TestHelper::validate_tasmessage(xml, "./xml/gpu_mem.xsd"), "Structure of xml reply for ImxGpuMem was invalid.");
 
     // check that the xml document is valid.
     QDomNode rootItem;
@@ -269,7 +297,7 @@ void TestImxFixture::test_parse_mem() {
     // lets verify that our data is correct.
     TEST_PROPERTY(rootItem, "name", "GpuMem");
     TEST_ATTRIBUTE(rootItem, "entryCount", "1");
-    TEST_ATTRIBUTE(rootItem, "isValid", "1");
+   // TEST_ATTRIBUTE(rootItem, "isValid", "1");
 
     int idx = 0;
 
@@ -315,6 +343,10 @@ void TestImxFixture::test_parse_usage() {
     usage->stopMeasure();
     usage->sendReport(xml);
 
+    qDebug() << TestHelper::prettyPrintXml(xml);
+
+    QVERIFY2(TestHelper::validate_tasmessage(xml, "./xml/gpu_usage.xsd"), "Structure of xml reply for ImxGpuUsage was invalid.");
+
     // check that the xml document is valid.
     QDomNode rootItem;
     bool ok = false;
@@ -328,19 +360,36 @@ void TestImxFixture::test_parse_usage() {
     // lets verify that our data is correct.
     TEST_PROPERTY(rootItem, "name", "GpuUsage");
     TEST_ATTRIBUTE(rootItem, "entryCount", "1");
-    TEST_ATTRIBUTE(rootItem, "isValid", "1");
 
-    int idx = 0;
 
-    TEST_ENTRY_PROPERTY(rootItem, idx, "name", "LogEntry");
+    TEST_ENTRY_PROPERTY(rootItem, 0, "name", "LogEntry");
 
+    TEST_ENTRY_ATTRIBUTE(rootItem, 0, "is_valid", "true");
+
+
+    QDomNode dataRoot = TestHelper::get_node_by_id(rootItem, 0);
+
+    QString value;
+    TestHelper::get_attribute(dataRoot, "count", &value);
+    int dataRowCount = value.toInt();
+    QVERIFY(dataRowCount == 1);
+
+
+    // add test values
     usageData["on_percentage"] = "37.5";
     usageData["off_percentage"] = "18.75";
     usageData["idle_percentage"] = "12.5";
     usageData["suspend_percentage"] = "31.25";
 
-    foreach(QString key, usageData.keys()) {
-        TEST_ENTRY_ATTRIBUTE(rootItem, idx, key, usageData[key].toString());
+
+    for(int idx=0; idx<dataRowCount; idx++) {
+        QDomNode dataRow = TestHelper::get_datarow_by_id(dataRoot, idx);
+
+        foreach(QString key, usageData.keys()) {
+            QString value;
+            TestHelper::get_attribute(dataRow, key, &value);
+            QVERIFY(value == usageData[key].toString());
+        }
     }
 }
 
@@ -372,6 +421,9 @@ void TestImxFixture::test_parse_version() {
     version->stopMeasure();
     version->sendReport(xml);
 
+    qDebug() << TestHelper::prettyPrintXml(xml);
+    QVERIFY2(TestHelper::validate_tasmessage(xml, "./xml/gpu_version.xsd"), "Structure of xml reply for ImxGpuVersion was invalid.");
+
     // check that the xml document is valid.
     QDomNode rootItem;
     bool ok = false;
@@ -385,7 +437,7 @@ void TestImxFixture::test_parse_version() {
     // lets verify that our data is correct.
     TEST_PROPERTY(rootItem, "name", "GpuVersion");
     TEST_ATTRIBUTE(rootItem, "entryCount", "1");
-    TEST_ATTRIBUTE(rootItem, "isValid", "1");
+//    TEST_ATTRIBUTE(rootItem, "isValid", "1");
 
     int idx = 0;
 
@@ -398,6 +450,6 @@ void TestImxFixture::test_parse_version() {
 }
 
 
-QTEST_APPLESS_MAIN(TestImxFixture)
+QTEST_MAIN(TestImxFixture)
 
 #include "tst_testimxfixture.moc"

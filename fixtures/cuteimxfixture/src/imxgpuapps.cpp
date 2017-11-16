@@ -36,7 +36,7 @@ ImxGpuApps::~ImxGpuApps()
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }
 
-QHash<QString, QVariant> ImxGpuApps::parseResult(QString data)
+ResultHash ImxGpuApps::parseResult(QString data)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     /*
@@ -45,7 +45,7 @@ PID     NAME
 24      someOtherApp
 330     someApp
      */
-    QHash<QString, QVariant> retval;
+    ResultHash appData;
 
     int lineCounter = 0;
     foreach (QString line, data.split("\n")) {
@@ -61,14 +61,16 @@ PID     NAME
         if (lineData.count() == 2) {
             QString key = lineData.at(0).trimmed();
             QString value = lineData.at(1).trimmed();
-            retval[key] = value;
+            appData[key] = value;
         }
     }
+    ResultHash retval;
+    retval["apps"] = appData;
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
     return retval;
 }
 
-bool ImxGpuApps::checkValidity(QHash<QString, QVariant> result)
+bool ImxGpuApps::checkValidity(ResultHash result)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     bool retval = false;
@@ -100,15 +102,23 @@ void ImxGpuApps::reportData(TasObjectContainer& container)
 
     TasObject& parent = container.addNewObject("0", "GpuApps", "logData");
 
-    parent.addAttribute("isValid", m_isValid);
-    parent.addAttribute("entryCount", QString::number(m_lastResult.keys().size()));
-    for(int i = 0 ; i < m_lastResult.keys().size(); i++ ){
-        TasObject& appObj = parent.addNewObject(QString::number(i),"LogEntry", "logEntry");
-        QString pid = m_lastResult.keys().at(i);
-        QString processName = m_lastResult[pid].toString();
-        appObj.addAttribute("pid", pid);
-        appObj.addAttribute("processName", processName);
-        TasLogger::logger()->debug(QString("Adding pid='%0' processName='%1'").arg(pid).arg(processName));
+    parent.addAttribute("entryCount", QString::number(m_results.count()));
+    int idx = 0;
+    foreach(ResultHash result, m_results) {
+        TasObject& resultObj = parent.addNewObject(QString::number(idx),"LogEntry", "logEntry");
+        resultObj.addAttribute("count", QString::number(result["apps"].toHash().keys().count()));
+        resultObj.addAttribute("timestamp_start", result["timestamp_start"].toString());
+        resultObj.addAttribute("timestamp_end", result["timestamp_end"].toString());
+        resultObj.addAttribute("is_valid", result["is_valid"].toString());
+        int keyIdx = 0;
+        foreach(QString pid, result["apps"].toHash().keys()) {
+            TasObject& appObj = resultObj.addNewObject(QString::number(keyIdx++),"DataRow", "dataRow");
+            QString processName = result[pid].toString();
+            appObj.addAttribute("pid", pid);
+            appObj.addAttribute("processName", processName);
+            TasLogger::logger()->debug(QString("Adding pid='%0' processName='%1'").arg(pid).arg(processName));
+        }
+        idx++;
     }
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }

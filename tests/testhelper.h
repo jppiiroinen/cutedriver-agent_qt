@@ -51,12 +51,13 @@
         QVERIFY2(ok, QString("Invalid attribute '%0', expected '%1' actual was '%2'.").arg(fieldName).arg(expectedValue).arg(actualValue).toLatin1().data()); \
     } \
 
-
 class TestHelper : public QObject
 {
     Q_OBJECT
 
 public:
+    static QString readFile(QString fileName);
+    static bool validate_tasmessage(QString xml, QString xsdFile);
     static void get_tasmessage(QString xml, QDomNode* node, bool* ok = NULL);
     static QDomDocument get_xml_document(QString name, QString xml, bool* ok = NULL);
     static void validate_tasmessage_xml_header(QDomDocument doc, bool* ok = NULL);
@@ -67,7 +68,12 @@ public:
     static void check_entry_attribute(QDomNode rootItem, int entryIdx, QString attributeName, QString attributeValue, bool* ok = NULL, QString* retval = NULL);
     static QList<QDomNode> get_nodes_by_type(QDomNode rootItem, QString typeName);
     static QString get_property(QDomNode rootItem, QString propertyName);
+    static QDomNode get_node_by_id(QDomNode rootItem, int entryId);
+    static QDomNode get_datarow_by_id(QDomNode rootItem, int dataRowId);
+    static void get_attribute(QDomNode rootItem, QString attribute, QString* value);
     static void check_entry_property(QDomNode rootItem, int entryIdx, QString propertyName, QString propertyValue, bool* ok = NULL, QString* retval = NULL);
+
+    static QString prettyPrintXml(QString xml);
 };
 
 

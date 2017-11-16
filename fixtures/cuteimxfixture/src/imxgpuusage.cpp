@@ -37,7 +37,7 @@ ImxGpuUsage::~ImxGpuUsage()
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }
 
-QHash<QString, QVariant> ImxGpuUsage::parseResult(QString data)
+ResultHash ImxGpuUsage::parseResult(QString data)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     /*
@@ -48,7 +48,7 @@ QHash<QString, QVariant> ImxGpuUsage::parseResult(QString data)
     Idle:    0 ns
     Suspend: 509200966758 ns
     */
-    QHash<QString, QVariant> retval;
+    ResultHash retval;
 
     foreach (QString line, data.split("\n")) {
         if (line.trimmed().count() == 0) continue;
@@ -71,7 +71,7 @@ QHash<QString, QVariant> ImxGpuUsage::parseResult(QString data)
     return retval;
 }
 
-bool ImxGpuUsage::checkValidity(QHash<QString, QVariant> result)
+bool ImxGpuUsage::checkValidity(ResultHash result)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     bool retval = true;
@@ -94,12 +94,12 @@ bool ImxGpuUsage::checkValidity(QHash<QString, QVariant> result)
             }
         }
 
-        if (retval && !m_previousResult.isEmpty()) {
+        /*if (retval && !m_previousResult.isEmpty()) {
             retval = result["start"] == m_previousResult["end"];
             if (retval == false) {
                 TasLogger::logger()->warning(QString("Measurement data is compromised. 'start' field (%0) is not equal to 'end' field (%1) in previous measurement.").arg(result["start"].toString()).arg(m_previousResult["end"].toString()));
             }
-        }
+        }*/
     }
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
     return retval;
@@ -110,45 +110,52 @@ void ImxGpuUsage::reportData(TasObjectContainer& container)
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     TasObject& parent = container.addNewObject("0", "GpuUsage", "logData");
 
-    parent.addAttribute("isValid", m_isValid);
-    parent.addAttribute("entryCount", "1");
+    parent.addAttribute("entryCount", QString::number(m_results.count()));
+    int i = 0;
+    foreach(ResultHash result, m_results) {
+        TasObject& obj = parent.addNewObject(QString::number(i),"LogEntry", "logEntry");
+        obj.addAttribute("timestamp_start", result["timestamp_start"].toString());
+        obj.addAttribute("timestamp_end", result["timestamp_end"].toString());
+        obj.addAttribute("is_valid", result["is_valid"].toString());
 
-    TasObject& obj = parent.addNewObject(QString::number(0),"LogEntry", "logEntry");
+        obj.addAttribute("count", "1");
+        TasObject& appObj = obj.addNewObject("0","DataRow", "dataRow");
 
-    qlonglong start = m_lastResult["start"].toLongLong();
-    qlonglong end = m_lastResult["end"].toLongLong();
-    qlonglong on = m_lastResult["on"].toLongLong();
-    qlonglong off = m_lastResult["off"].toLongLong();
-    qlonglong idle = m_lastResult["idle"].toLongLong();
-    qlonglong suspend = m_lastResult["suspend"].toLongLong();
+        qlonglong start = result["start"].toLongLong();
+        qlonglong end = result["end"].toLongLong();
+        qlonglong on = result["on"].toLongLong();
+        qlonglong off = result["off"].toLongLong();
+        qlonglong idle = result["idle"].toLongLong();
+        qlonglong suspend = result["suspend"].toLongLong();
 
-    // a quick validity check
-    qlonglong total_time = end - start;
-    qlonglong check = on + off + idle + suspend;
-    if (total_time != check) {
-        TasLogger::logger()->warning("data does not seem legit.");
-        m_isValid = false;
-    }
-    obj.addAttribute("isValid", m_isValid);
-
-    // add fields and calculate percentages when applicable
-    QStringList fields;
-    fields << "start" << "end" << "on" << "off" << "idle" << "suspend";
-    foreach(QString field, fields) {
-        QString value = m_lastResult[field].toString();
-        obj.addAttribute(field, value);
-        TasLogger::logger()->debug(QString("Adding %0='%1'").arg(field).arg(value));
-
-        if (field != "start" && field != "end") {
-            // calculate percentages
-            qlonglong value = m_lastResult[field].toLongLong();
-            double percentage = 0;
-            if (value > 0) {
-                percentage = double(value) / total_time * 100;
-            }
-            obj.addAttribute(QString("%0_percentage").arg(field), percentage);
-            TasLogger::logger()->debug(QString("Adding %0_percentage='%1'").arg(field).arg(percentage));
+        // a quick validity check
+        qlonglong total_time = end - start;
+        qlonglong check = on + off + idle + suspend;
+        if (total_time != check) {
+            TasLogger::logger()->warning("data does not seem legit.");
+            appObj.addAttribute("is_valid", false);
         }
+
+        // add fields and calculate percentages when applicable
+        QStringList fields;
+        fields << "start" << "end" << "on" << "off" << "idle" << "suspend";
+        foreach(QString field, fields) {
+            QString value = result[field].toString();
+            appObj.addAttribute(field, value);
+            TasLogger::logger()->debug(QString("Adding %0='%1'").arg(field).arg(value));
+
+            if (field != "start" && field != "end") {
+                // calculate percentages
+                qlonglong value = result[field].toLongLong();
+                double percentage = 0;
+                if (value > 0) {
+                    percentage = double(value) / total_time * 100;
+                }
+                appObj.addAttribute(QString("%0_percentage").arg(field), percentage);
+                TasLogger::logger()->debug(QString("Adding %0_percentage='%1'").arg(field).arg(percentage));
+            }
+        }
+        i++;
     }
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }

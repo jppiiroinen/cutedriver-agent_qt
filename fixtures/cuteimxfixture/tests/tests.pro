@@ -18,9 +18,12 @@
 
 QT += testlib
 QT += xml
-QT -= gui
+QT += xmlpatterns
 
 include(../../../tasbase.pri)
+QT += gui
+QT += core
+
 DEPENDPATH += ../src
 INCLUDEPATH += . ../../../tascore/corelib
 LIBS += -L../../../tascore/lib/ -lqttestability -L../src/lib/ -lcuteimxfixture
@@ -32,7 +35,7 @@ TEMPLATE = app
 # enable 'make check'
 check.commands = LD_LIBRARY_PATH=../src/lib:$$LD_LIBRARY_PATH
 
-OTHER_FILES += $$files(data/*)
+OTHER_FILES += $$files(data/*) $$files(xml/*)
 
 SOURCES += \
     tst_imxfixture.cpp \

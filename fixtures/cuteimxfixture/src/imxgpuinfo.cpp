@@ -37,7 +37,7 @@ ImxGpuInfo::~ImxGpuInfo()
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }
 
-QHash<QString, QVariant> ImxGpuInfo::parseResult(QString data)
+ResultHash ImxGpuInfo::parseResult(QString data)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     /*
@@ -54,9 +54,9 @@ QHash<QString, QVariant> ImxGpuInfo::parseResult(QString data)
     model    :  355
     revision : 1216
     */
-    QHash<QString, QVariant> retval;
+    ResultHash retval;
     QString currentGpu;
-    QHash<QString, QString> currentGpuInfo;
+    QHash<QString, QVariant> currentGpuInfo;
     int gpuCounter = 0;
     foreach (QString line, data.split("\n")) {
         // lets read values
@@ -69,22 +69,23 @@ QHash<QString, QVariant> ImxGpuInfo::parseResult(QString data)
             if (key == "gpu") {
                 gpuCounter++;
                 currentGpu = value;
-                currentGpuInfo.clear();
                 TasLogger::logger()->debug(QString("Found gpu '%0'").arg(currentGpu));
             } else {
-                key = QString("%0_%1").arg(currentGpu).arg(key);
-                retval[key] = value;
+                ResultHash data = retval[currentGpu].toHash();
+                data[key] = value;
+                retval[currentGpu] = data;
                 TasLogger::logger()->debug(QString("Found '%0'"
                                            " and '%1' for '%2'").arg(key).arg(value).arg(currentGpu));
             }
         }
     }
+
     retval["count"] = gpuCounter;
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
     return retval;
 }
 
-bool ImxGpuInfo::checkValidity(QHash<QString, QVariant> result)
+bool ImxGpuInfo::checkValidity(ResultHash result)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     bool retval = false;
@@ -95,14 +96,15 @@ bool ImxGpuInfo::checkValidity(QHash<QString, QVariant> result)
         QStringList fields;
         fields << "model" << "revision";
         for(int gpu=0; gpu < count; gpu++) {
+            QString key = QString::number(gpu);
+            ResultHash gpuData = result[key].toHash();
             foreach(QString field, fields) {
-                QString key = QString("%0_%1").arg(gpu).arg(field);
-                retval = result.keys().indexOf(key) > -1;
+                retval = gpuData.keys().indexOf(field) > -1;
                 if (!retval) {
                     TasLogger::logger()->warning(QString("Missing '%0' field for gpu '%1'").arg(key).arg(gpu));
                     break;
                 }
-                retval = result[key].toString().length() > 0;
+                retval = gpuData[field].toString().length() > 0;
                 if (!retval) {
                     TasLogger::logger()->warning(QString("Invalid '%0' field for gpu '%1'").arg(key).arg(gpu));
                     break;
@@ -123,20 +125,28 @@ void ImxGpuInfo::reportData(TasObjectContainer& container)
 
     TasObject& parent = container.addNewObject("0", "GpuInfo", "logData");
 
-    parent.addAttribute("isValid", m_isValid);
-    int gpuCount = m_lastResult["count"].toInt();
-    parent.addAttribute("entryCount", gpuCount);
+    parent.addAttribute("entryCount", QString::number(m_results.count()));
+    int idx = 0;
+    foreach(ResultHash result, m_results) {
+        TasObject& resultObj = parent.addNewObject(QString::number(idx),"LogEntry", "logEntry");
+        resultObj.addAttribute("count", result["count"].toInt());
+        resultObj.addAttribute("timestamp_start", result["timestamp_start"].toString());
+        resultObj.addAttribute("timestamp_end", result["timestamp_end"].toString());
+        resultObj.addAttribute("is_valid", result["is_valid"].toString());
+        TasLogger::logger()->debug(QString("Found '%0' results.").arg(result.keys().count()));
+        for(int gpuIdx=0; gpuIdx < result["count"].toInt(); gpuIdx++) {
+            QString gpu = QString::number(gpuIdx);
+            TasObject& appObj = resultObj.addNewObject(gpu,"DataRow", "dataRow");
+            ResultHash gpuResult = result[gpu].toHash();
+            QString model = gpuResult["model"].toString();
+            QString revision = gpuResult["revision"].toString();
+            appObj.addAttribute("gpu", gpu);
+            appObj.addAttribute("model", model);
+            appObj.addAttribute("revision", revision);
+            TasLogger::logger()->debug(QString("Adding gpu='%0' model='%1' revision='%2'").arg(gpu).arg(model).arg(revision));
 
-    for(int i = 0 ; i < gpuCount; i++ ) {
-        TasObject& appObj = parent.addNewObject(QString::number(i),"LogEntry", "logEntry");
-        QString gpu = QString::number(i);
-        QString model = m_lastResult[QString("%0_model").arg(gpu)].toString();
-        QString revision = m_lastResult[QString("%0_revision").arg(gpu)].toString();
-        appObj.addAttribute("gpu", gpu);
-        appObj.addAttribute("model", model);
-        appObj.addAttribute("revision", revision);
-        TasLogger::logger()->debug(QString("Adding gpu='%0' model='%1' revision='%2'").arg(gpu).arg(model).arg(revision));
-
+        }
+        idx++;
     }
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }

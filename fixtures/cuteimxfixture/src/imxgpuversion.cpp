@@ -36,15 +36,15 @@ ImxGpuVersion::~ImxGpuVersion()
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }
 
-QHash<QString, QVariant> ImxGpuVersion::parseResult(QString data)
+ResultHash ImxGpuVersion::parseResult(QString data)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
-    QHash<QString, QVariant> retval;
     /*
 5.0.11.p8.41671 built at
 Platform path: ../drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_hal_kernel_platform_imx6q14.c
 
      */
+    ResultHash retval;
     int lineCounter = 0;
     foreach (QString line, data.split("\n")) {
         TasLogger::logger()->debug(line);
@@ -64,7 +64,7 @@ Platform path: ../drivers/mxc/gpu-viv/hal/os/linux/kernel/platform/freescale/gc_
     return retval;
 }
 
-bool ImxGpuVersion::checkValidity(QHash<QString, QVariant> result)
+bool ImxGpuVersion::checkValidity(ResultHash result)
 {
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     bool retval = false;
@@ -78,16 +78,21 @@ void ImxGpuVersion::reportData(TasObjectContainer& container)
     TasLogger::logger()->debug(QString(">> %0").arg(Q_FUNC_INFO));
     TasObject& parent = container.addNewObject("0", "GpuVersion", "logData");
 
-    parent.addAttribute("isValid", m_isValid);
-    parent.addAttribute("entryCount", "1");
+    parent.addAttribute("entryCount", QString::number(m_results.count()));
+    int idx = 0;
+    foreach(ResultHash result, m_results) {
+        TasObject& obj = parent.addNewObject(QString::number(idx),"LogEntry", "logEntry");
+        obj.addAttribute("timestamp_start", result["timestamp_start"].toString());
+        obj.addAttribute("timestamp_end", result["timestamp_end"].toString());
+        obj.addAttribute("is_valid", result["is_valid"].toString());
 
-    TasObject& obj = parent.addNewObject(QString::number(0),"LogEntry", "logEntry");
-
-    QString field = "version";
-    if (m_lastResult.keys().indexOf(field) > -1) {
-        QString value = m_lastResult[field].toString();
-        obj.addAttribute(field,value);
-        TasLogger::logger()->debug(QString("Adding %0='%1'").arg(field).arg(value));
+        QString field = "version";
+        if (result.keys().indexOf(field) > -1) {
+            QString value = result[field].toString();
+            obj.addAttribute(field,value);
+            TasLogger::logger()->debug(QString("Adding %0='%1'").arg(field).arg(value));
+        }
+        idx++;
     }
     TasLogger::logger()->debug(QString("<< %0").arg(Q_FUNC_INFO));
 }
